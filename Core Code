@@ -47,48 +47,6 @@ effective_sizes$alphas
 ##Posterior predictive checks
 ppcheck(jointFit1)
 
-#Landmark Model
-build_landmark_dataset <- function(data,t0,horizon,fixed_vars,varying_vars) {
-outcome_data <- data %>%
-distinct(hosid, status_time, status)
-risk_ids <- outcome_data %>%
-filter(status_time > t0) %>%
-pull(hosid)
-landmark_values <- data %>%
-filter(hosid %in% risk_ids, time_hour <= t0) %>%
-group_by(hosid) %>%
-slice_max(order_by = time_hour, n = 1, with_ties = FALSE) %>%
-ungroup() %>%
-select(hosid, time_hour, all_of(varying_vars))
-fixed_data <- data %>%
-filter(hosid %in% risk_ids) %>%
-select(hosid, all_of(fixed_vars)) %>%
-distinct()
-landmark_data <- landmark_values %>%
-left_join(outcome_data, by = "hosid") %>%
-left_join(fixed_data, by = "hosid")
-landmark_data <- landmark_data %>%
-mutate(new_surv_time = pmin(status_time - t0, horizon),
-new_event = case_when(
-status == 1 & status_time <= t0 + horizon ~ 1,  
-TRUE ~ 0)
-) %>%
-filter(new_surv_time > 0)
-return(landmark_data)
-}
-
-fixed_vars <- c("age", "diabetes", "sepsis", "weight", "hypertension")
-varying_vars <- c("uo", "SCr_value") 
-
-lm_data <- build_landmark_dataset(
-data = predict_aki,t0 = 0,horizon = 120,fixed_vars = fixed_vars,varying_vars = varying_vars) 
-formula_str <- paste0(
-"Surv(new_surv_time, new_event) ~ ",
-paste(c(varying_vars, fixed_vars), collapse = " + ")
-)
-model <- coxph(as.formula(formula_str), data = lm_data)
-summary(model)
-
 #Static Model 
 static_model <- coxph(
   Surv(status_time, status) ~ uo + SCr_value + age + diabetes + sepsis + weight + hypertension,
