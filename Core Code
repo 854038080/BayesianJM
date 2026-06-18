@@ -13,7 +13,26 @@ fm2 <- lme(uo ~ time_hour+age+weight+sepsis, data = predict_aki, random = ~ time
 jointFit1 <- jm(CoxFit, list(fm1, fm2), time_var = "time_hour")
 summary(jointFit1)
 
-##Calculation of AUC, ICI, and Brier Score
+##bootstrap
+bootstrap_samples <- function(predict_aki, B = 50) {
+  unique_ids <- unique(predict_aki$hosid)
+  map(1:B, ~ {
+    sampled_ids <- sample(unique_ids, size = length(unique_ids), replace = TRUE)
+    predict_aki %>% filter(hosid %in% sampled_ids)
+  })
+}
+boot_results <- bootstrap_samples(predict_aki, B = 50)
+auc_results <- numeric(50)  
+roc_list <- list() 
+for (i in 1:50) {
+  boot_data <- boot_results[[i]]
+  roc <- tvROC(jointFit1, newdata = boot_data, Tstart = 0,  Dt = 120)
+  auc_results[i] <- tvAUC(roc)
+  roc_list[[i]] <- roc  
+}
+
+⭐Using the bootstrap code above, the following parameters were calculated⭐
+##Calculation of AUC, ICI, and Brier Score 
 roc1 <- tvROC(jointFit1,newdata = predict_aki,Tstart =0,Dt=120)
 tvAUC(roc1)
 roc2 <- tvROC(jointFit1,newdata = predict_aki,Tstart =24,Dt=96)
